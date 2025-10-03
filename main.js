@@ -24,7 +24,7 @@ function createWindows() {
     },
   });
 
-  visualizerWindow.loadFile("index.html");
+  visualizerWindow.loadFile("main.html");
   joystickWindow.loadFile("joystick.html");
 }
 
@@ -32,9 +32,9 @@ app.whenReady().then(() => {
   createWindows();
 
   ipcMain.on("vectorCommand", (event, vec) => {
-    console.log("[main.js] Received vectorCommand:", vec);
+    //console.log("[main.js] Received vectorCommand:", vec);
     visualizerWindow.webContents.send("vectorCommand", vec);
-    console.log("[main.js] Sent vectorCommand to visualizerWindow:", vec);
+    //console.log("[main.js] Sent vectorCommand to visualizerWindow:", vec);
   });
 
   app.on("activate", () => {

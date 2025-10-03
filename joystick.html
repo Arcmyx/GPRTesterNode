@@ -35,7 +35,6 @@
   </head>
   <body>
     <canvas id="joystick" width="200" height="200"></canvas>
-    <div id="slider"><div id="sliderFill"></div></div>
 
     <script>
       const { ipcRenderer } = require("electron");
@@ -44,8 +43,7 @@
       const ctx = canvas.getContext("2d");
       const radius = canvas.width / 2;
       let x = 0,
-        z = 0,
-        y = 0;
+        z = 0;
 
       function drawJoystick() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -79,28 +77,19 @@
       });
 
       function sendVector() {
-        const vec = { x, y, z };
+        const vec = { x, z };
         console.log("[joystick.html] Sending vectorCommand:", vec);
         ipcRenderer.send("vectorCommand", vec);
         drawJoystick();
       }
 
-      // Y slider control via arrow keys
-      window.addEventListener("keydown", (e) => {
-        if (e.key === "ArrowUp") {
-          y = Math.min(1, y + 0.1);
-        } else if (e.key === "ArrowDown") {
-          y = Math.max(-1, y - 0.1);
-        }
-        document.getElementById("sliderFill").style.width = `${(y + 1) * 50}%`;
-        sendVector();
-      });
+      // Removed Y slider and arrow key controls
 
       drawJoystick();
 
       // Send current vector every 100ms
       setInterval(() => {
-        const vec = { x, y, z };
+        const vec = { x, z };
         console.log("[joystick.html] Sending vectorCommand (interval):", vec);
         ipcRenderer.send("vectorCommand", vec);
       }, 100);

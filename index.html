@@ -124,18 +124,16 @@
         keepReading = false;
       // offsets are stored in screen pixels (intuitive)
       let offsetX = 0,
-        offsetY = 0,
-        targetOffsetX = 0,
+        offsetY = 0; // in noise units
+      let targetOffsetX = 0,
         targetOffsetY = 0;
-      // zoom factor: 1 = default, >1 zoomed-in, <1 zoomed-out (clamped)
       let zoom = 1,
         targetZoom = 1;
 
-      // Tweakables
-      const baseNoiseScale = 0.006; // noise units per pixel at zoom = 1
-      const panStepPixels = 40; // how many pixels one "unit" of pan moves per input
-      const zoomStep = 0.12; // additive zoom step per y input unit
-      const interp = 0.15; // smoothing factor for lerp
+      const baseNoiseScale = 0.006;
+      const panStep = 40 * baseNoiseScale; // convert pixels to noise units
+      const zoomStep = 0.12;
+      const interp = 0.15;
 
       function log(msg) {
         const el = document.createElement("div");
@@ -240,11 +238,13 @@
         z = Math.max(-1, Math.min(1, z));
 
         // apply panning in pixel space, and zoom additively
-        const panStepNoise = (panStepPixels * baseNoiseScale) / zoom;
+        const panStepNoise = panStep / zoom; // panStep is already in noise units
+        // pan in noise units
         targetOffsetX += x * panStepNoise;
         targetOffsetY += z * panStepNoise;
-        targetZoom += y * zoomStep;
-        targetZoom = Math.max(0.2, Math.min(targetZoom, 5)); // clamp to avoid collapse or insane zoom
+
+        // zoom
+        targetZoom = Math.max(0.2, Math.min(targetZoom + y * zoomStep, 5));
       }
 
       // wire UI
@@ -280,7 +280,11 @@
 
           p.background(10, 15, 30);
           // offsets are in "noise units", not pixels
-          const effectiveNoiseScale = baseNoiseScale * zoom; // zoom >1 => features bigger
+          const effectiveNoiseScale = baseNoiseScale * zoom; // zoom scales features
+          offsetX += (targetOffsetX - offsetX) * interp;
+          offsetY += (targetOffsetY - offsetY) * interp;
+          zoom += (targetZoom - zoom) * interp;
+
           terrainShader.setUniform("uOffsetX", offsetX);
           terrainShader.setUniform("uOffsetY", offsetY);
           terrainShader.setUniform("uNoiseScale", effectiveNoiseScale);
