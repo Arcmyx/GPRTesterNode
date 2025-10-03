@@ -1,0 +1,15 @@
+{
+  "name": "gprtesternode",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "Arcmyx & TheLego Dynamics FLL Team",
+  "license": "ISC",
+  "devDependencies": {
+    "@abandonware/noble": "^1.9.2-26",
+    "electron": "^38.2.0"
+  }
+}
