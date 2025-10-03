@@ -319,23 +319,70 @@
           p.endShape();
           p.resetShader();
 
-          if (cityOverlayLoaded) {
+          // Overlay city GPR scan image and effects ABOVE the noise, using 2D overlay in WEBGL
+          if (
+            cityOverlayLoaded &&
+            cityOverlayImg &&
+            cityOverlayImg.width > 0 &&
+            cityOverlayImg.height > 0
+          ) {
             p.push();
-            p.resetMatrix(); // switch to screen space
-            p.translate(-p.width / 2, -p.height / 2); // top-left corner
-
-            p.imageMode(p.CORNER);
-            let imgW = 300;
-            let imgH = 200;
-            let x = p.width / 2 - imgW / 2;
-            let y = p.height / 2 - imgH / 2;
-
-            p.image(cityOverlayImg, x, y, imgW, imgH);
-
+            // Switch to orthographic projection for 2D overlay
+            p.ortho();
+            p.resetMatrix();
+            let imgW = 300; // px, adjust as needed
+            let imgH = 200; // px, adjust as needed
+            let screenX = p.width / 2;
+            let screenY = p.height / 2;
+            p.tint(255, 255); // fully opaque for debug
+            p.image(
+              cityOverlayImg,
+              screenX - imgW / 2,
+              screenY - imgH / 2,
+              imgW,
+              imgH
+            );
+            // Draw debug border
             p.noFill();
             p.stroke(255, 0, 0);
             p.strokeWeight(3);
-            p.rect(x, y, imgW, imgH);
+            p.rect(screenX - imgW / 2, screenY - imgH / 2, imgW, imgH);
+
+            // Draw vertical scan lines
+            p.strokeWeight(1);
+            for (let i = 0; i < imgW; i += 8) {
+              p.stroke(255, 255, 255, 60 + 80 * Math.random());
+              p.line(
+                screenX - imgW / 2 + i,
+                screenY - imgH / 2,
+                screenX - imgW / 2 + i,
+                screenY + imgH / 2
+              );
+            }
+
+            // Glitch effect: sometimes shift the image horizontally
+            if (Math.random() < 0.07) {
+              let glitchOffset = Math.floor(Math.random() * 20 - 10);
+              p.push();
+              p.tint(255, 180);
+              p.image(
+                cityOverlayImg,
+                screenX - imgW / 2 + glitchOffset,
+                screenY - imgH / 2,
+                imgW,
+                imgH
+              );
+              p.pop();
+            }
+            p.pop();
+          } else if (!cityOverlayLoaded) {
+            // Show debug text if image not loaded
+            p.push();
+            p.ortho();
+            p.resetMatrix();
+            p.fill(255, 0, 0);
+            p.textSize(18);
+            p.text("city-overlay.png not loaded", 40, 60);
             p.pop();
           }
 
