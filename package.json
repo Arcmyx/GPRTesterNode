@@ -11,5 +11,8 @@
   "devDependencies": {
     "@abandonware/noble": "^1.9.2-26",
     "electron": "^38.2.0"
+  },
+  "dependencies": {
+    "p5play": "^3.33.5"
   }
 }

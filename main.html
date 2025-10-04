@@ -32,6 +32,7 @@
     <title>Perlin Underground — Full Res Smooth</title>
     <script src="https://cdn.jsdelivr.net/npm/p5@1.6.0/lib/p5.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/p5@1.6.0/lib/addons/p5.dom.min.js"></script>
+
     <style>
       html,
       body,
@@ -297,6 +298,9 @@
         };
 
         p.draw = function () {
+          // Use background(0) for reliable clearing in WEBGL
+          p.background(0);
+
           let now = performance.now();
           let dt = (now - lastTime) / 1000;
           lastTime = now;
@@ -306,35 +310,39 @@
           offsetZ += (targetOffsetZ - offsetZ) * Math.min(panSpeed * dt, 1.0);
 
           const effectiveNoiseScale = baseNoiseScale;
-          p.shader(terrainShader);
-          terrainShader.setUniform("uOffsetX", offsetX);
-          terrainShader.setUniform("uOffsetY", offsetZ);
-          terrainShader.setUniform("uNoiseScale", effectiveNoiseScale);
+          if (true) {
+            p.shader(terrainShader);
+            terrainShader.setUniform("uOffsetX", offsetX);
+            terrainShader.setUniform("uOffsetY", offsetZ);
+            terrainShader.setUniform("uNoiseScale", effectiveNoiseScale);
 
-          p.beginShape(p.TRIANGLE_STRIP);
-          p.vertex(-1, -1, 0);
-          p.vertex(1, -1, 0);
-          p.vertex(-1, 1, 0);
-          p.vertex(1, 1, 0);
-          p.endShape();
-          p.resetShader();
-
-          // Overlay city GPR scan image and effects ABOVE the noise, using 2D overlay in WEBGL
+            p.beginShape(p.TRIANGLE_STRIP);
+            p.vertex(-1, -1, 0);
+            p.vertex(1, -1, 0);
+            p.vertex(-1, 1, 0);
+            p.vertex(1, 1, 0);
+            p.endShape();
+            p.resetShader();
+          }
+          // Overlay city GPR scan image and effects ABOVE the noise, but moving with world offset
           if (
             cityOverlayLoaded &&
             cityOverlayImg &&
             cityOverlayImg.width > 0 &&
             cityOverlayImg.height > 0
           ) {
-            p.push();
-            // Switch to orthographic projection for 2D overlay
-            p.ortho();
+            let imgW = 2048; // px, adjust as needed
+            let imgH = 3072; // px, adjust as needed
+            // Calculate screen position so overlay moves with noise
+            let screenX = p.width / 2 - (offsetX * 0.861) / baseNoiseScale;
+            let screenY = p.height / 2 + (offsetZ * 0.861) / baseNoiseScale;
             p.resetMatrix();
-            let imgW = 300; // px, adjust as needed
-            let imgH = 200; // px, adjust as needed
-            let screenX = p.width / 2;
-            let screenY = p.height / 2;
-            p.tint(255, 255); // fully opaque for debug
+            p.ortho();
+            p.push();
+            p.drawingContext.disable(p.drawingContext.DEPTH_TEST);
+
+            // draw overlay image with translucency
+            p.tint(255, 100); // 180/255 alpha for translucency
             p.image(
               cityOverlayImg,
               screenX - imgW / 2,
@@ -342,12 +350,16 @@
               imgW,
               imgH
             );
-            // Draw debug border
-            p.noFill();
-            p.stroke(255, 0, 0);
-            p.strokeWeight(3);
-            p.rect(screenX - imgW / 2, screenY - imgH / 2, imgW, imgH);
+            p.tint(255, 100); // reset tint to opaque for any later drawing
 
+            // optional debug border
+            //p.noFill();
+            //p.stroke(255, 0, 0);
+            //p.rect(screenX - imgW / 2, screenY - imgH / 2, imgW, imgH);
+
+            p.drawingContext.enable(p.drawingContext.DEPTH_TEST);
+            p.pop();
+            /*
             // Draw vertical scan lines
             p.strokeWeight(1);
             for (let i = 0; i < imgW; i += 8) {
@@ -374,20 +386,21 @@
               );
               p.pop();
             }
-            p.pop();
+            */
           } else if (!cityOverlayLoaded) {
             // Show debug text if image not loaded
-            p.push();
-            p.ortho();
             p.resetMatrix();
+            p.ortho();
+            p.push();
             p.fill(255, 0, 0);
             p.textSize(18);
             p.text("city-overlay.png not loaded", 40, 60);
             p.pop();
           }
 
-          p.push();
           p.resetMatrix();
+          p.ortho();
+          p.push();
           p.fill(255);
           p.textSize(12);
           p.text(
