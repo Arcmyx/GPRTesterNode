@@ -2,43 +2,64 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Joystick Control</title>
+    <title>Joystick + Drone (GPU WEBGL)</title>
     <style>
       body {
         margin: 0;
         background: #111;
-        color: white;
+        color: #fff;
         font-family: sans-serif;
         display: flex;
-        flex-direction: column;
+        flex-direction: row;
         align-items: center;
         justify-content: center;
+        gap: 32px;
+        height: 100vh;
       }
-      canvas {
+      #joystick {
         border: 2px solid #444;
         border-radius: 50%;
         background: #222;
       }
-      #slider {
-        margin-top: 20px;
-        width: 200px;
-        height: 20px;
-        background: #333;
-        position: relative;
+      #droneCanvas {
+        border: 2px solid #444;
+        background: #1a1a1a;
       }
-      #sliderFill {
-        height: 100%;
-        background: #0af;
-        width: 50%;
+      .col {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+      }
+      .label {
+        color: #aaa;
+        font-size: 12px;
+        letter-spacing: 0.5px;
       }
     </style>
   </head>
   <body>
-    <canvas id="joystick" width="200" height="200"></canvas>
+    <div class="col">
+      <canvas id="joystick" width="200" height="200"></canvas>
+      <div class="label">Joystick (sends {x,z} via IPC)</div>
+    </div>
+
+    <div class="col">
+      <div id="droneCanvas"></div>
+      <div class="label">Top‑down drone (GPU: WEBGL)</div>
+    </div>
+
+    <!-- p5 for GPU WEBGL -->
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.6.0/lib/p5.min.js"></script>
 
     <script>
+      // Electron IPC for your existing wiring
       const { ipcRenderer } = require("electron");
 
+      // Shared joystick state for renderer
+      window.joyState = { x: 0, z: 0 };
+
+      // --- Joystick ---
       const canvas = document.getElementById("joystick");
       const ctx = canvas.getContext("2d");
       const radius = canvas.width / 2;
@@ -78,21 +99,122 @@
 
       function sendVector() {
         const vec = { x, z };
-        console.log("[joystick.html] Sending vectorCommand:", vec);
-        ipcRenderer.send("vectorCommand", vec);
+        window.joyState = vec; // expose to p5 renderer
+        ipcRenderer.send("vectorCommand", vec); // keep your IPC functional
         drawJoystick();
       }
 
-      // Removed Y slider and arrow key controls
-
       drawJoystick();
 
-      // Send current vector every 100ms
+      // Also send current vector every 100ms (as in your original)
       setInterval(() => {
         const vec = { x, z };
-        console.log("[joystick.html] Sending vectorCommand (interval):", vec);
+        window.joyState = vec;
         ipcRenderer.send("vectorCommand", vec);
       }, 100);
+    </script>
+
+    <script>
+      // --- p5 WEBGL drone renderer (GPU) ---
+      let droneModel;
+      let roll = 0,
+        pitch = 0;
+      let rollTarget = 0,
+        pitchTarget = 0;
+
+      // Tuning for feel
+      const maxRollDeg = 35; // bank left/right with x
+      const maxPitchDeg = 25; // nose up/down with z
+      const smoothing = 0.12; // lerp factor per frame
+      const camDist = 350; // camera height above model
+      const modelScale = 0.005; // scale after normalize=true
+
+      const sketch = (p) => {
+        p.preload = () => {
+          // GPU: WEBGL renderer will handle geometry on GPU
+          droneModel = p.loadModel("drone.stl", true); // normalize to unit box
+        };
+
+        p.setup = () => {
+          const w = 420,
+            h = 420;
+          const cnv = p.createCanvas(w, h, p.WEBGL);
+          cnv.parent("droneCanvas");
+
+          // Ensure solid GPU path
+          p.pixelDensity(1); // predictable performance on GPU
+          p.setAttributes("depth", true);
+          p.setAttributes("antialias", true);
+          p.noStroke();
+        };
+
+        p.draw = () => {
+          p.background(18);
+
+          // Read joystick; map to target roll/pitch
+          // z is inverted to make up/down intuitive (up mouse -> nose up)
+          rollTarget = p.radians(window.joyState.x * maxRollDeg);
+          pitchTarget = p.radians(-window.joyState.z * maxPitchDeg);
+
+          // Smooth motion
+          roll += (rollTarget - roll) * smoothing;
+          pitch += (pitchTarget - pitch) * smoothing;
+
+          // Top‑down camera looking straight down at origin
+          // camera(eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ)
+          // Place camera above the model on +Y, looking at origin; up vector along -Z
+          p.camera(0, 0, camDist, 0, 0, 0, 0, 1, 0);
+
+          p.perspective(p.PI / 3.0, p.width / p.height, 0.01, 5000);
+
+          // Simple lights for shape
+          p.ambientLight(80);
+          p.directionalLight(180, 180, 200, 0.4, -1.0, 0.2);
+          p.directionalLight(120, 120, 140, -0.8, -0.6, -0.5);
+
+          // Draw a faint ground reference
+          p.push();
+          p.rotateX(p.HALF_PI); // lay plane flat
+          p.fill(30);
+          p.plane(300, 300);
+          p.pop();
+
+          // Drone
+          p.push();
+
+          // First flip the model so it's not upside down
+          p.rotateX(p.PI); // flip 180° around X (adjust if needed)
+
+          // Align STL so its nose points up screen
+          p.rotateX(p.HALF_PI);
+
+          // Apply pitch (nose up/down) around X
+          p.rotateX(pitch);
+          p.rotateZ(p.PI * 2);
+          p.rotateY(p.PI);
+          // Apply roll (bank left/right) around Z (forward axis)
+          p.rotateY(-roll);
+
+          p.ambientMaterial(220);
+          p.scale(140 * modelScale);
+          p.model(droneModel);
+          p.pop();
+
+          // Overlay HUD text (2D) without depth to keep it visible
+          p.resetMatrix();
+          p.ortho();
+          p.push();
+          p.drawingContext.disable(p.drawingContext.DEPTH_TEST);
+          p.fill(255);
+          p.textSize(12);
+          p.text(`roll: ${p.degrees(roll).toFixed(1)}°`, 10, 18);
+          p.text(`pitch: ${p.degrees(pitch).toFixed(1)}°`, 10, 34);
+          p.drawingContext.enable(p.drawingContext.DEPTH_TEST);
+          p.pop();
+        };
+      };
+
+      new p5(sketch);
     </script>
   </body>
 </html>

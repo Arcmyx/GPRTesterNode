@@ -31,7 +31,7 @@
     <meta charset="utf-8" />
     <title>Perlin Underground — Full Res Smooth</title>
     <script src="https://cdn.jsdelivr.net/npm/p5@1.6.0/lib/p5.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/p5@1.6.0/lib/addons/p5.dom.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.8.0/addons/p5.dom.min.js"></script>
 
     <style>
       html,
@@ -75,6 +75,7 @@
     <div id="ui">
       <!-- Serial buttons removed -->
       <button id="simulateBtn">Simulate</button>
+      <button id="switchFreqBtn">Switch frequencies</button>
       <div>
         <input id="manualInput" placeholder="UP/DOWN/LEFT/RIGHT or (x,y,z)" />
         <button id="sendManual">Send</button>
@@ -95,80 +96,93 @@
     </script>
 
     <script id="frag" type="x-shader/x-fragment">
-      precision highp float;
-      uniform float uOffsetX;
-      uniform float uOffsetY;
-      uniform float uNoiseScale;
+          precision highp float;
+          uniform float uOffsetX;
+          uniform float uOffsetY;
+          uniform float uNoiseScale;
+
       uniform vec2 uResolution;
+      uniform bool uSharpMode;
 
 
-      // Real Perlin noise (gradient noise) implementation
-      vec2 fade(vec2 t) {
-        return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
-      }
+          // Real Perlin noise (gradient noise) implementation
+          vec2 fade(vec2 t) {
+            return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+          }
 
-      float grad(vec2 hash, vec2 p) {
-        // 8 directions
-        float angle = 6.2831853 * fract(sin(dot(hash, vec2(12.9898,78.233))) * 43758.5453);
-        return dot(p, vec2(cos(angle), sin(angle)));
-      }
+          float grad(vec2 hash, vec2 p) {
+            // 8 directions
+            float angle = 6.2831853 * fract(sin(dot(hash, vec2(12.9898,78.233))) * 43758.5453);
+            return dot(p, vec2(cos(angle), sin(angle)));
+          }
 
 
-      float perlin(vec2 p) {
-        vec2 pi = floor(p);
-        vec2 pf = fract(p);
-        // Hash corners
-        vec2 h00 = pi;
-        vec2 h10 = pi + vec2(1.0, 0.0);
-        vec2 h01 = pi + vec2(0.0, 1.0);
-        vec2 h11 = pi + vec2(1.0, 1.0);
-        // Gradients
-        float g00 = grad(h00, pf);
-        float g10 = grad(h10, pf - vec2(1.0, 0.0));
-        float g01 = grad(h01, pf - vec2(0.0, 1.0));
-        float g11 = grad(h11, pf - vec2(1.0, 1.0));
-        // Interpolation
-        vec2 f = fade(pf);
-        float nx0 = mix(g00, g10, f.x);
-        float nx1 = mix(g01, g11, f.x);
-        float nxy = mix(nx0, nx1, f.y);
-        // Normalize to [0,1]
-        return 0.5 + 0.5 * nxy;
-      }
+          float perlin(vec2 p) {
+            vec2 pi = floor(p);
+            vec2 pf = fract(p);
+            // Hash corners
+            vec2 h00 = pi;
+            vec2 h10 = pi + vec2(1.0, 0.0);
+            vec2 h01 = pi + vec2(0.0, 1.0);
+            vec2 h11 = pi + vec2(1.0, 1.0);
+            // Gradients
+            float g00 = grad(h00, pf);
+            float g10 = grad(h10, pf - vec2(1.0, 0.0));
+            float g01 = grad(h01, pf - vec2(0.0, 1.0));
+            float g11 = grad(h11, pf - vec2(1.0, 1.0));
+            // Interpolation
+            vec2 f = fade(pf);
+            float nx0 = mix(g00, g10, f.x);
+            float nx1 = mix(g01, g11, f.x);
+            float nxy = mix(nx0, nx1, f.y);
+            // Normalize to [0,1]
+            return 0.5 + 0.5 * nxy;
+          }
 
-      // Fractal Brownian Motion for more detail
-      float fbm(vec2 p) {
-        float total = 0.0;
-        float amplitude = 0.5;
-        float frequency = 1.0;
-        for (int i = 0; i < 5; i++) {
-          total += perlin(p * frequency) * amplitude;
-          frequency *= 2.0;
-          amplitude *= 0.5;
-        }
-        return total;
-      }
+          // Fractal Brownian Motion for more detail
 
-      // Simulate an archaeology-tuned GPR scan
-      void main() {
-        // GPR scans are horizontally banded, with strong reflections and noise
-        vec2 uv = gl_FragCoord.xy * uNoiseScale * 1.2 + vec2(uOffsetX, uOffsetY);
-        float n = fbm(uv);
-        // Add horizontal banding (simulate time/depth slices)
-        float band = sin(uv.y * 6.0) * 0.08;
-        // Simulate strong reflectors (buried objects)
-        float reflect = smoothstep(0.62, 0.65, n) * 0.7;
-        // Add subtle random noise for realism
-        float grain = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898,78.233))) * 43758.5453) * 0.07 - 0.035;
-        // Combine all effects
-        float gpr = n + band + reflect + grain;
-        gpr = clamp((gpr - 0.45) * 2.0 + 0.5, 0.0, 1.0); // high contrast
-        // Gray color ramp: #111111 (dark) to #7d7d7d (light)
-        vec3 dark = vec3(0.066, 0.066, 0.066); // #111111
-        vec3 light = vec3(0.49, 0.49, 0.49);   // #7d7d7d
-        vec3 color = mix(dark, light, gpr);
-        gl_FragColor = vec4(color, 1.0);
-      }
+          float fbm(vec2 p, bool sharp) {
+            float total = 0.0;
+            float amplitude = 0.5;
+            float frequency = 1.0;
+            int octaves = sharp ? 20 : 5;
+            float freqMult = sharp ? 10.0 : 2.0;
+            float ampMult = sharp ? 0.18 : 0.5;
+            for (int i = 0; i < 8; i++) {
+              if (i >= octaves) break;
+              total += perlin(p * frequency) * amplitude;
+              frequency *= freqMult;
+              amplitude *= ampMult;
+            }
+            return total;
+          }
+
+          // Simulate an archaeology-tuned GPR scan
+          void main() {
+            // GPR scans are horizontally banded, with strong reflections and noise
+            vec2 uv = gl_FragCoord.xy * uNoiseScale * 1.2 + vec2(uOffsetX, uOffsetY);
+      float n = fbm(uv, uSharpMode);
+            // Add horizontal banding (simulate time/depth slices)
+            float band = sin(uv.y * 6.0) * 0.08;
+            // Simulate strong reflectors (buried objects)
+            float reflect = smoothstep(0.62, 0.65, n) * 0.7;
+            // Add subtle random noise for realism
+            float grain = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898,78.233))) * 43758.5453) * 0.07 - 0.035;
+            // Combine all effects
+            float gpr = n + band + reflect + grain;
+            gpr = clamp((gpr - 0.45) * 2.0 + 0.5, 0.0, 1.0); // high contrast
+            // Gray color ramp: #111111 (dark) to #7d7d7d (light) for normal, brighter for sharp
+            vec3 dark, light;
+            if (uSharpMode) {
+              dark = vec3(0.32, 0.32, 0.32); // dark gray
+              light = vec3(0.95, 0.95, 0.95); // almost white
+            } else {
+              dark = vec3(0.066, 0.066, 0.066); // #111111
+              light = vec3(0.49, 0.49, 0.49);   // #7d7d7d
+            }
+            vec3 color = mix(dark, light, gpr);
+            gl_FragColor = vec4(color, 1.0);
+          }
     </script>
 
     <script>
@@ -206,8 +220,9 @@
       // Serial functionality removed
 
       // --- Pan and Zoom State ---
-      const baseNoiseScale = 0.006;
-      const panStep = 40 * baseNoiseScale;
+      let baseNoiseScale = 0.006;
+      const panSpeed = 80;
+      let panStep = panSpeed * baseNoiseScale;
       // Zoom functionality removed
 
       let offsetX = 0,
@@ -277,15 +292,21 @@
 
       // --- p5 Sketch ---
       let terrainShader;
+      let useSharpNoise = false;
       let lastTime = performance.now();
-      let cityOverlayImg;
-      let cityOverlayLoaded = false;
-
+      let cityOverlayImg, citySharpImg;
+      let cityOverlayLoaded = false,
+        citySharpLoaded = false;
+      let font;
       let sketch = (p) => {
         p.preload = function () {
           cityOverlayImg = p.loadImage("city-overlay.png", () => {
             cityOverlayLoaded = true;
           });
+          citySharpImg = p.loadImage("city-sharp.png", () => {
+            citySharpLoaded = true;
+          });
+          font = p.loadFont("proximanova_regular.ttf");
         };
         p.setup = function () {
           p.createCanvas(p.windowWidth, p.windowHeight, p.WEBGL);
@@ -294,7 +315,25 @@
             document.getElementById("frag").textContent
           );
           p.noStroke();
-          p.textFont("sans-serif");
+          p.textFont(font);
+
+          // Button event for switching frequencies
+          document.getElementById("switchFreqBtn").onclick = function () {
+            useSharpNoise = !useSharpNoise;
+            this.textContent = useSharpNoise
+              ? "Switch to low frequency"
+              : "Switch to high frequency";
+            if (useSharpNoise) {
+              baseNoiseScale = 0.004;
+              panStep = panSpeed * baseNoiseScale;
+            } else {
+              baseNoiseScale = 0.006;
+              panStep = panSpeed * baseNoiseScale;
+            }
+            console.log(
+              "Switched to " + (useSharpNoise ? "high" : "low") + " frequency"
+            );
+          };
         };
 
         p.draw = function () {
@@ -310,47 +349,48 @@
           offsetZ += (targetOffsetZ - offsetZ) * Math.min(panSpeed * dt, 1.0);
 
           const effectiveNoiseScale = baseNoiseScale;
-          if (true) {
-            p.shader(terrainShader);
-            terrainShader.setUniform("uOffsetX", offsetX);
-            terrainShader.setUniform("uOffsetY", offsetZ);
-            terrainShader.setUniform("uNoiseScale", effectiveNoiseScale);
+          p.shader(terrainShader);
+          terrainShader.setUniform("uOffsetX", offsetX);
+          terrainShader.setUniform("uOffsetY", offsetZ);
+          terrainShader.setUniform("uNoiseScale", effectiveNoiseScale);
+          terrainShader.setUniform("uSharpMode", useSharpNoise);
 
-            p.beginShape(p.TRIANGLE_STRIP);
-            p.vertex(-1, -1, 0);
-            p.vertex(1, -1, 0);
-            p.vertex(-1, 1, 0);
-            p.vertex(1, 1, 0);
-            p.endShape();
-            p.resetShader();
-          }
+          p.beginShape(p.TRIANGLE_STRIP);
+          p.vertex(-1, -1, 0);
+          p.vertex(1, -1, 0);
+          p.vertex(-1, 1, 0);
+          p.vertex(1, 1, 0);
+          p.endShape();
+          p.resetShader();
           // Overlay city GPR scan image and effects ABOVE the noise, but moving with world offset
-          if (
-            cityOverlayLoaded &&
-            cityOverlayImg &&
-            cityOverlayImg.width > 0 &&
-            cityOverlayImg.height > 0
-          ) {
-            let imgW = 2048; // px, adjust as needed
-            let imgH = 3072; // px, adjust as needed
+          let img, loaded;
+          if (useSharpNoise) {
+            img = citySharpImg;
+            loaded = citySharpLoaded;
+          } else {
+            img = cityOverlayImg;
+            loaded = cityOverlayLoaded;
+          }
+          if (loaded && img && img.width > 0 && img.height > 0) {
+            let imgW = 2048;
+            let imgH = 3072;
+            if (useSharpNoise) {
+              imgW *= 1.5;
+              imgH *= 1.5;
+            }
             // Calculate screen position so overlay moves with noise
             let screenX = p.width / 2 - (offsetX * 0.861) / baseNoiseScale;
             let screenY = p.height / 2 + (offsetZ * 0.861) / baseNoiseScale;
+            screenX += 2000;
             p.resetMatrix();
             p.ortho();
             p.push();
             p.drawingContext.disable(p.drawingContext.DEPTH_TEST);
 
             // draw overlay image with translucency
-            p.tint(255, 100); // 180/255 alpha for translucency
-            p.image(
-              cityOverlayImg,
-              screenX - imgW / 2,
-              screenY - imgH / 2,
-              imgW,
-              imgH
-            );
-            p.tint(255, 100); // reset tint to opaque for any later drawing
+            p.tint(255, 255); // 180/255 alpha for translucency
+            p.image(img, screenX - imgW / 2, screenY - imgH / 2, imgW, imgH);
+            p.tint(255, 255); // reset tint to opaque for any later drawing
 
             // optional debug border
             //p.noFill();
@@ -394,12 +434,46 @@
             p.push();
             p.fill(255, 0, 0);
             p.textSize(18);
+            p.textFont(font);
             p.text("city-overlay.png not loaded", 40, 60);
             p.pop();
           }
 
+          // --- GPR Glitch Effects ---
           p.resetMatrix();
           p.ortho();
+          // Horizontal glitch lines (many, subtle)
+          let glitchLineCount = 12 + Math.floor(Math.random() * 8);
+          for (let i = 0; i < glitchLineCount; i++) {
+            let y = Math.floor(Math.random() * p.height);
+            let x1 = Math.floor(Math.random() * p.width * 0.7);
+            let x2 = x1 + Math.floor(Math.random() * (p.width - x1));
+            let alpha = 60 + Math.random() * 80;
+            let thickness = 1 + Math.random() * 2;
+            p.push();
+            p.stroke(255, 255, 255, alpha);
+            p.strokeWeight(thickness);
+            p.line(x1, y, x2, y);
+            p.pop();
+          }
+
+          // Occasional major glitch bars (rare, bold)
+          if (Math.random() < 0.2) {
+            let barCount = 1 + Math.floor(Math.random() * 2);
+            for (let i = 0; i < barCount; i++) {
+              let y = Math.floor(Math.random() * p.height);
+              let barHeight = 6 + Math.random() * 16;
+              let alpha = 120 + Math.random() * 100;
+              let color = 200 + Math.random() * 55;
+              p.push();
+              p.noStroke();
+              p.fill(color, color, color, alpha);
+              p.rect(0, y, p.width, barHeight);
+              p.pop();
+            }
+          }
+
+          // UI text overlay
           p.push();
           p.fill(255);
           p.textSize(12);

@@ -1,2 +1,0 @@
-// This is a placeholder for the city-overlay.png image. Please upload your image to this path:
-// c:/Users/athar/MyFiles/Programming/FLL/FLL 2025-26 Innovation Code/GPRTesterNode/city-overlay.png
