@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("path");
 
-let visualizerWindow, joystickWindow, droneWindow;
+let visualizerWindow, joystickWindow;
 
 function createWindows() {
   visualizerWindow = new BrowserWindow({
@@ -24,19 +24,8 @@ function createWindows() {
     },
   });
 
-  droneWindow = new BrowserWindow({
-    width: 400,
-    height: 400,
-    webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
-      nodeIntegration: true,
-      contextIsolation: false,
-    },
-  });
-
   visualizerWindow.loadFile("main.html");
   joystickWindow.loadFile("joystick.html");
-  droneWindow.loadFile("drone.html");
 }
 
 app.whenReady().then(() => {

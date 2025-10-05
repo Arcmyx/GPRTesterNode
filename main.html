@@ -399,34 +399,6 @@
 
             p.drawingContext.enable(p.drawingContext.DEPTH_TEST);
             p.pop();
-            /*
-            // Draw vertical scan lines
-            p.strokeWeight(1);
-            for (let i = 0; i < imgW; i += 8) {
-              p.stroke(255, 255, 255, 60 + 80 * Math.random());
-              p.line(
-                screenX - imgW / 2 + i,
-                screenY - imgH / 2,
-                screenX - imgW / 2 + i,
-                screenY + imgH / 2
-              );
-            }
-
-            // Glitch effect: sometimes shift the image horizontally
-            if (Math.random() < 0.07) {
-              let glitchOffset = Math.floor(Math.random() * 20 - 10);
-              p.push();
-              p.tint(255, 180);
-              p.image(
-                cityOverlayImg,
-                screenX - imgW / 2 + glitchOffset,
-                screenY - imgH / 2,
-                imgW,
-                imgH
-              );
-              p.pop();
-            }
-            */
           } else if (!cityOverlayLoaded) {
             // Show debug text if image not loaded
             p.resetMatrix();
@@ -442,14 +414,55 @@
           // --- GPR Glitch Effects ---
           p.resetMatrix();
           p.ortho();
+          p.translate(-p.width / 2, -p.height / 2);
+          console.log("Canvas size:", p.width, p.height);
+          /*
           // Horizontal glitch lines (many, subtle)
           let glitchLineCount = 12 + Math.floor(Math.random() * 8);
           for (let i = 0; i < glitchLineCount; i++) {
             let y = Math.floor(Math.random() * p.height);
             let x1 = Math.floor(Math.random() * p.width * 0.7);
-            let x2 = x1 + Math.floor(Math.random() * (p.width - x1));
-            let alpha = 60 + Math.random() * 80;
-            let thickness = 1 + Math.random() * 2;
+            let x2 = Math.floor(Math.random() * p.width);
+            if (x2 < x1) [x1, x2] = [x2, x1]; // ensure left-to-right
+            let alpha = 0 + Math.random() * 80;
+            //let thickness = 0.5 + Math.random() / 4;
+            let thickness = 0.75;
+            p.push();
+            p.stroke(255, 255, 255, alpha);
+            p.strokeWeight(thickness);
+            p.line(x1, y, x2, y);
+            p.pop();
+          }
+          */
+          // Horizontal glitch lines (always visible)
+          const minGlitchDistance = 10;
+          const maxGlitchDistance = 50;
+
+          function generateRandomPoint(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+          }
+
+          for (let i = 0; i < 12 + Math.floor(Math.random() * 8); i++) {
+            let y = generateRandomPoint(0, p.height - 1);
+            let x1 = generateRandomPoint(
+              minGlitchDistance,
+              p.width - minGlitchDistance
+            );
+            let x2 = generateRandomPoint(
+              minGlitchDistance,
+              p.width - minGlitchDistance
+            );
+
+            while (x1 === x2) {
+              x2 = generateRandomPoint(
+                minGlitchDistance,
+                p.width - minGlitchDistance
+              );
+            }
+
+            let alpha = 0 + Math.random() * 80;
+            let thickness = 0.75;
+
             p.push();
             p.stroke(255, 255, 255, alpha);
             p.strokeWeight(thickness);
@@ -472,7 +485,6 @@
               p.pop();
             }
           }
-
           // UI text overlay
           p.push();
           p.fill(255);
