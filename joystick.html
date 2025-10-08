@@ -63,50 +63,102 @@
       const canvas = document.getElementById("joystick");
       const ctx = canvas.getContext("2d");
       const radius = canvas.width / 2;
+      const center = { x: radius, y: radius };
+      let easingToMouse = false;
+      let easingToCenter = false;
+      let targetX = 0,
+        targetZ = 0;
+      let easeSpeed = 0.2; // adjust for snappiness
+
       let x = 0,
         z = 0;
+      let mouseHeld = false;
 
       function drawJoystick() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Outer ring
         ctx.beginPath();
-        ctx.arc(radius, radius, radius - 2, 0, Math.PI * 2);
+        ctx.arc(center.x, center.y, radius - 2, 0, Math.PI * 2);
         ctx.strokeStyle = "#888";
+        ctx.lineWidth = 2;
         ctx.stroke();
 
+        // Stick position
+        const px = center.x + x * radius;
+        const py = center.y + z * radius;
         ctx.beginPath();
-        ctx.arc(radius + x * radius, radius + z * radius, 10, 0, Math.PI * 2);
+        ctx.arc(px, py, 10, 0, Math.PI * 2);
         ctx.fillStyle = "#0af";
         ctx.fill();
       }
 
-      canvas.addEventListener("mousemove", (e) => {
+      function updateStick(e) {
         const rect = canvas.getBoundingClientRect();
-        const dx = e.clientX - rect.left - radius;
-        const dz = e.clientY - rect.top - radius;
+        const dx = e.clientX - rect.left - center.x;
+        const dz = e.clientY - rect.top - center.y;
         const dist = Math.sqrt(dx * dx + dz * dz);
-        if (dist < radius) {
-          x = dx / radius;
-          z = dz / radius;
-          sendVector();
+
+        if (dist <= radius) {
+          targetX = dx / radius;
+          targetZ = dz / radius;
+        } else {
+          const angle = Math.atan2(dz, dx);
+          targetX = Math.cos(angle);
+          targetZ = Math.sin(angle);
         }
-      });
 
-      canvas.addEventListener("mouseleave", () => {
-        x = 0;
-        z = 0;
-        sendVector();
-      });
-
-      function sendVector() {
-        const vec = { x, z };
-        window.joyState = vec; // expose to p5 renderer
-        ipcRenderer.send("vectorCommand", vec); // keep your IPC functional
-        drawJoystick();
+        easingToMouse = true;
       }
 
-      drawJoystick();
+      canvas.addEventListener("mousedown", (e) => {
+        mouseHeld = true;
+        updateStick(e);
+      });
 
-      // Also send current vector every 100ms (as in your original)
+      window.addEventListener("mousemove", (e) => {
+        if (mouseHeld) updateStick(e);
+      });
+
+      window.addEventListener("mouseup", () => {
+        mouseHeld = false;
+        easingToCenter = true;
+        easingToMouse = false;
+      });
+      function loop() {
+        if (easingToMouse && mouseHeld) {
+          x += (targetX - x) * easeSpeed;
+          z += (targetZ - z) * easeSpeed;
+          sendVector();
+        }
+
+        if (easingToCenter && !mouseHeld) {
+          x += (0 - x) * easeSpeed;
+          z += (0 - z) * easeSpeed;
+
+          if (Math.abs(x) < 0.001 && Math.abs(z) < 0.001) {
+            x = 0;
+            z = 0;
+            easingToCenter = false;
+          }
+
+          sendVector();
+        }
+
+        drawJoystick();
+        requestAnimationFrame(loop);
+      }
+      loop();
+      function sendVector() {
+        const vec = { x, z };
+        window.joyState = vec;
+        ipcRenderer.send("vectorCommand", vec);
+        drawJoystick();
+      }
+      loop();
+      //drawJoystick();
+
+      // Also send current vector every 100ms
       setInterval(() => {
         const vec = { x, z };
         window.joyState = vec;

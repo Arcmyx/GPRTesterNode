@@ -15,7 +15,7 @@ function createWindows() {
   });
 
   joystickWindow = new BrowserWindow({
-    width: 400,
+    width: 800,
     height: 400,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
